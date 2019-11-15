@@ -1,10 +1,12 @@
 -- Changelog --
--- 2019-10-26: First version considered done
+-- 2019-10-26: First version considered done.
+-- 2019-11-13: Added CAS check and warning if program running on a non CAS calculator.
+--             Improved how active I/O box is set. Focus remains in active box during resize in comp view. On prgm launch and switch between calc and comp view, focus is set in dec I/O box.
+--             Added copy/cut/paste text functionality.
 
 -- Minimum requirements: TI Nspire CX CAS (color resulution 318x212)
-
 platform.apilevel = '2.4'
-local appversion = "191026" -- Made by: Fredrik Ekelöf, fredrik.ekelof@gmail.com
+local appversion = "191113" -- Made by: Fredrik Ekelöf, fredrik.ekelof@gmail.com
 
 -- App layout configuration
 local lines = 4 -- Total lines program contains. Lines are evenly split horizonatally.
@@ -21,10 +23,10 @@ local brdcolorinact = 0xEBEBEB -- Inactive box border, grey
 local errorcolor = 0xF02600 -- Error text, dark red
 
 -- Variabels for internal use
+local isCAS = nil -- Used for CAS check. Variabel is set in on.resize() function.
 local fnthdg,fntbody = fnthdgset,fntbodyset -- Font size variabels used by functions
 local lblhdg = "Number Base Converter" -- Program heading
 local ioidtable = {} -- Initial empty table for storing I/O editor boxes unique ID:s
-local prgmlaunch = 1 -- Used to set dec I/O box active at program launch
 
 -- Screen properties
 local scr = platform.window -- Shortcut
@@ -34,6 +36,11 @@ function on.construction()
 
     -- Sets background colour
     scr:setBackgroundColor(bgcolor)
+
+    -- Activates copy/cut/paste functionality
+    toolpalette.enableCopy(true)
+    toolpalette.enableCut(true)
+    toolpalette.enablePaste(true)
 
     -- Defines editor boxes variabels, var = iobox(ID,"label text",number base,line number)
     iobin = iobox(1,"Bin: ",2,1)
@@ -47,6 +54,9 @@ function on.resize()
 
     -- Fetches and stores new screen dimensions when window resizes
     scrwh,scrht = scr:width(),scr:height()
+
+    -- Checks if program running on a CAS calculator
+    isCAS = not not math.evalStr("?")
 
     -- Adjusts font size to screen size.
     if scrwh >= 318 then
@@ -62,6 +72,19 @@ function on.resize()
     iooct:ioeditor()
     iodec:ioeditor()
     iohex:ioeditor()
+
+    -- Makes border remain blue in active box
+    local setfocus = 1 -- Used to set focus in dec I/O box
+    for i = 1,4 do -- Tracks which input box has focus
+        if ioidtable[i]:hasFocus() == true then
+            ioidtable[i]:setBorderColor(brdcoloract)
+            setfocus = 0
+        end
+    end
+    if setfocus == 1 then -- Makes dec I/O box active at launch and if no other input boxes focus
+        ioidtable[3]:setFocus()
+        ioidtable[3]:setBorderColor(brdcoloract)
+    end
 
 end
 
@@ -83,7 +106,11 @@ function on.paint(gc)
     gc:setColorRGB(0x000000)
     local hdgwh,hdght = gc:getStringWidth(lblhdg),gc:getStringHeight(lblhdg) -- Fetches heading dimensions
     if scrht/scrwh < 0.65 or scrht/scrwh > 0.69 or scrht < 212 or scrwh < 318 then -- Prints warning for incorrect screen split
+        gc:setColorRGB(errorcolor)
         gc:drawString("Screen ratio not supported!",0,0,"top")
+    elseif isCAS == false then -- Prints warning if calculator is not CAS
+        gc:setColorRGB(errorcolor)
+        gc:drawString("Calculator not supported!",0,0,"top")    
     else
         gc:drawString(lblhdg,scrwh/2-hdgwh/2,0,"top") -- Prints heading
     end
@@ -120,7 +147,6 @@ function iobox:init(id,lbl,base,line) -- (ID,"label text",number base,line numbe
     self.line = line
     self.boxid = D2Editor.newRichText() -- Generates iobox
     ioidtable[id] = self.boxid -- Stores iobox unique ID
-    -- self.digittable = {}
 
 end
 
@@ -136,13 +162,6 @@ function iobox:lblpaint(gc)
     gc:setFont("sansserif","b",fntbody)
     gc:setColorRGB(0x000000)
     gc:drawString(self.lbl,padding*scrwh/318,hdght+padding*scrwh/318+scrht*(self.line-1)/lines,"top")
-
-    -- Makes dec I/O box active at program launch
-    if prgmlaunch == 1 then
-        ioidtable[3]:setFocus()
-        ioidtable[3]:setBorderColor(brdcoloract)
-        prgmlaunch = 0
-    end
 
 end
 
